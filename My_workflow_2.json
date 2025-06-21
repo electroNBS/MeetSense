@@ -1,0 +1,263 @@
+{
+  "name": "My workflow 2",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "meeting-intake",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "b232211d-8d48-4546-9d24-3e762678258e",
+      "name": "Webhook",
+      "webhookId": "eac24412-905f-489a-8cac-9496e858637a"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const data = $input.item.json.body;\nreturn { json: { transcript: data } }\n\n\n\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ],
+      "id": "e7cb995f-5090-46b3-a577-049eb0cc0d78",
+      "name": "Code"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are an AI meeting assistant. Given a transcript, do the following:\n1. Summarize the meeting (5 bullet points max).\n2. Identify all action items.\n3. Assign tasks to participants.\n4. Output format:\n\n{\n  \"summary\": \"...\",\n  \"tasks\": [\n    { \"name\": \"Alice\", \"task\": \"Prepare Q2 budget\", \"due\": \"2025-06-23\" },\n    { \"name\": \"Bob\", \"task\": \"Send product mockups\", \"due\": \"2025-06-24\" }\n  ]\n}\n\nThe transcript is: {{ $json.transcript }}\n\n",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        500,
+        0
+      ],
+      "id": "ee4052c1-6a46-4188-9b15-b40be9524f73",
+      "name": "Basic LLM Chain"
+    },
+    {
+      "parameters": {
+        "model": "sreekar-gpt4o",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatAzureOpenAi",
+      "typeVersion": 1,
+      "position": [
+        500,
+        180
+      ],
+      "id": "7d610c98-2fd0-4d0a-9325-75aed9be097e",
+      "name": "Azure OpenAI Chat Model",
+      "credentials": {
+        "azureOpenAiApi": {
+          "id": "24og0iV6GXT9JGFJ",
+          "name": "Azure Open AI account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rawText = $input.item.json.text;\n\n// Remove ```json and ``` markers\nconst cleanedText = rawText.replace(/```json|```/g, '').trim();\n\nlet parsed;\ntry {\n  parsed = JSON.parse(cleanedText);\n} catch (err) {\n  throw new Error('Invalid JSON returned from LLM');\n}\n\nconst tasks = parsed.tasks || [];\n\n// Group tasks by participant\nconst taskGroups = {};\nfor (const task of tasks) {\n  const name = task.name;\n  if (!taskGroups[name]) {\n    taskGroups[name] = [];\n  }\n  taskGroups[name].push(task);\n}\n\nreturn {\n  json: {\n    taskGroups,\n    tasks: tasks,\n    summary: parsed.summary,\n  },\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        860,
+        0
+      ],
+      "id": "f3e6deb5-a144-47b8-8242-8c43d098101b",
+      "name": "Code1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const firstItem = $input.first();\nconst tasks = firstItem.json.tasks || [];\nconst summary = firstItem.json.summary || [];\n\nreturn tasks.map(task => ({\n  json: {\n    name: task.name,\n    task: task.task,\n    due: task.due,\n    summary: summary,\n  }\n}));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1080,
+        0
+      ],
+      "id": "16af475b-abea-4a96-934a-bc4287719156",
+      "name": "Code2"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const emailMap = {\n  \"Bob\": \"bob@gmail.com\",\n  \"Charlie\": \"charlie@gmail.com\",\n  \"All participants\": \"team@example.com\"\n};\n\nconst email = emailMap[$input.item.json.name] || \"default@example.com\";\n\nreturn {\n  json: {\n    ...$input.item.json,\n    calendarId: email,\n  }\n}\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        0
+      ],
+      "id": "89fa8e99-0554-4474-853e-550f74ac9216",
+      "name": "Code3"
+    },
+    {
+      "parameters": {
+        "calendar": {
+          "__rl": true,
+          "value": "=pcv.saisreekar@gmail.com",
+          "mode": "id"
+        },
+        "start": "={{ $json.due }}",
+        "end": "={{ $json.due }}",
+        "additionalFields": {
+          "description": "=Assigned to  {{ $json.name }}",
+          "summary": "={{ $json.task }}"
+        }
+      },
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        1540,
+        180
+      ],
+      "id": "40a5fefb-1b45-4640-ad78-77193d381cd9",
+      "name": "Google Calendar",
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "lZx52BdFUIYm819D",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.calendarId }}",
+        "subject": "=New Task:  {{ $json.task }}",
+        "message": "=Hi {{$json[\"name\"]}},  You've been assigned a task:  \"{{$json[\"task\"]}}\"  Due Date: {{$json[\"due\"]}}  Please check your calendar for more details.\n\nHere is the summary of the meeting:\n{{ $json.summary }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1540,
+        0
+      ],
+      "id": "1d41be1e-360a-4f2a-adf8-ee56aa797b6c",
+      "name": "Gmail",
+      "webhookId": "48c2d365-6570-4f8c-9c87-9bddf73430dc",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "l8Kq43A6gtj8vJlN",
+          "name": "Gmail account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Azure OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Code1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code1": {
+      "main": [
+        [
+          {
+            "node": "Code2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code2": {
+      "main": [
+        [
+          {
+            "node": "Code3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code3": {
+      "main": [
+        [
+          {
+            "node": "Gmail",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Google Calendar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "d5cfa1bc-0104-43ee-932c-9390b5f898e4",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "26179b6c33cde77c0decbf2ed9c068e07c64050d2ff146fbec779103eaeb55dd"
+  },
+  "id": "gsIqtdtSVVrhRUgx",
+  "tags": []
+}
