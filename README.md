@@ -9,7 +9,7 @@ Ideal for busy professionals, teams, and project managers, this agent transforms
 ## 🌐 Live Links
 
 - **🔗 Demo Video:** [Watch here](https://drive.google.com/file/d/1TzbKXGIOua0ETbrMKlPqCACZD3IM9EVK/view?usp=sharing)
-- **🧪 Live Preview:** [Ngrok Display Endpoint](https://e8ea-49-207-210-189.ngrok-free.app/display)
+- **🧪 Live Preview:** [Ngrok Display Endpoint](https://21f5-49-207-210-189.ngrok-free.app/display)
 
 ---
 
